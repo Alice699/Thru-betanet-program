@@ -1,0 +1,25 @@
+# Build outputs
+build/
+*.bin
+*.o
+*.a
+*.so
+*.elf
+
+# Keep the small deterministic ABI fixtures under version control.
+!fixtures/
+!fixtures/*.bin
+
+# macOS
+.DS_Store
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Temporary files
+*.tmp
+*.bak
