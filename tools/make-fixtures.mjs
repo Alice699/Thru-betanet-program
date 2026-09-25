@@ -86,6 +86,42 @@ const transferArgs = TransferArgs.builder()
   .set_new_controller_account_idx(0);
 write("instruction-transfer-control.bin", instruction(transferArgs, "transfer_control"));
 
+// These instructions are ABI-valid but intentionally violate Cambrian runtime
+// invariants. The live negative-QA script verifies their stable program errors.
+const runtimePulseBadIndex = PulseArgs.builder()
+  .set_organism_account_idx(9)
+  .set_catalyst(0x1122334455667788n);
+write("runtime-pulse-bad-index.bin", instruction(runtimePulseBadIndex, "pulse"));
+
+const runtimeEncounterSameAccount = EncounterArgs.builder()
+  .set_actor_account_idx(2)
+  .set_donor_account_idx(2)
+  .set_catalyst(0x2233445566778899n);
+write(
+  "runtime-encounter-same-account.bin",
+  instruction(runtimeEncounterSameAccount, "encounter"),
+);
+
+const runtimeReproduceSameParent = ReproduceArgs.builder()
+  .set_parent_a_account_idx(2)
+  .set_parent_b_account_idx(2)
+  .set_child_account_idx(3)
+  .set_seed(bytes(0x12))
+  .set_entropy(bytes(0xb1));
+runtimeReproduceSameParent.proof().write(proof).finish();
+write(
+  "runtime-reproduce-same-parent.bin",
+  instruction(runtimeReproduceSameParent, "reproduce"),
+);
+
+const runtimeTransferProgramController = TransferArgs.builder()
+  .set_organism_account_idx(2)
+  .set_new_controller_account_idx(1);
+write(
+  "runtime-transfer-program-controller.bin",
+  instruction(runtimeTransferProgramController, "transfer_control"),
+);
+
 const organismBuilder = CambrianOrganism.builder()
   .set_magic(0x43414d42)
   .set_version(1)
