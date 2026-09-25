@@ -1,186 +1,333 @@
-# Cambrian Lifeform
+# Cambrian
 
-Cambrian is a pure on-chain Thru Betanet program: deterministic digital organisms live in program-owned accounts, consume energy, mutate, encounter one another, reproduce, and can transfer control. It has no frontend or dApp dependency.
+> **Digital organisms that live entirely on Thru Betanet.**
 
-## Design
+Cambrian is an experimental on-chain ecosystem written in C. Each organism is a blockchain account with its own genome, energy, vitality, memory, ancestry, and controller. Transactions make organisms grow, mutate, meet, reproduce, become dormant, or die.
 
-The program exposes five instruction variants:
+The important part is not a visual simulation: the life state and rules are enforced by the deployed Thru program. There is no dApp, game server, or off-chain database required.
 
-| Instruction | Purpose |
-| --- | --- |
-| `birth` | Derive and initialize a new organism account from a seed and proof. |
-| `pulse` | Advance one organism through deterministic metabolism, aging, and mutation. |
-| `encounter` | Compare two genomes and transfer a deterministic gene/memory effect. |
-| `reproduce` | Cross two parent genomes, optionally mutate, and create a child account. |
-| `transfer_control` | Move organism control to another account. |
+[Explore the program](https://scan.thru.org/address/taqUdv93329-ZLvalbNYKhby6cDAa0v3dbT0IHbihXV3rw?rpc=https%3A%2F%2Frpc.betanet.thru.org) · [Inspect the published ABI](https://scan.thru.org/address/tafHBf1TH_KYXKy4AsKa-FJVob07FTyOigKH__mH_C8W47?rpc=https%3A%2F%2Frpc.betanet.thru.org) · [Read the launch notes](./LAUNCH.md)
 
-Each organism is a packed 264-byte account state. The program checks the account owner, magic/version, writable status, controller authorization, account indices, seed/address derivation, dynamic proof length, and arithmetic bounds before mutating state. Every successful transition emits a typed event whose first byte is the event tag and whose remaining bytes are the ABI payload.
+> [!IMPORTANT]
+> Cambrian is live on **Betanet** and remains upgradeable while testing continues. It is experimental software, not a financial product or a source of secure randomness.
 
-### Deterministic life rules
+## Cambrian in plain English
 
-- `pulse` advances by `elapsed = block.slot - last_pulse_slot`, bounded to 1–4096 slots so an organism can recover from ordinary inactivity without allowing unbounded arithmetic. Energy cost is `elapsed * (3 + (digest[0] & 7))`. Energy below 128 damages vitality by `elapsed + 3`; energy above 1024 recovers `floor(elapsed / 4) + 1`, capped at 1024 vitality.
-- Status becomes `dead` at zero vitality, `dormant` below the energy/vitality thresholds, and otherwise `alive`. A pulse mutates one of 256 genome bits when its deterministic digest passes the mutation threshold.
-- `encounter` computes compatibility as `256 - HammingDistance(genome_a, genome_b)`. Compatibility at least 192 is symbiosis (+128 energy), at least 96 is adaptation (+32 energy), and lower compatibility is stress (-96 energy). Only the actor is writable; the donor remains read-only.
-- `reproduce` uses a digest-derived byte mask for deterministic crossover, flips one bounded genome bit, charges the controlled parent 512 energy, increments the child generation, and records both parent addresses in the child.
-- All hashes use explicit domain labels and block/transaction context. This makes transitions reproducible and inspectable, but it is not a source of secure economic randomness.
+Think of an organism as a tiny save file stored on the blockchain.
 
-### Security invariants
+That file records:
 
-Every writable organism must be program-owned, exactly 264 bytes, version-compatible, explicitly writable, and authorized by its stored controller public key. New accounts must match the program-derived address for their seed and have an exact bounded proof length. Read-only donors are never stored back. Arithmetic floors at zero or saturates at a documented maximum, and malformed tags, lengths, statuses, and account relationships revert with stable ABI error codes.
+- a 256-bit genome;
+- energy, vitality, age, and life status;
+- an evolving memory;
+- parents, generation, and lineage;
+- activity counters; and
+- the account allowed to control it.
 
-### Lifecycle
+When someone sends a valid instruction, Cambrian reads the organism, applies the same deterministic rules for everyone, saves the new state, and emits a typed event. Anyone can inspect the result through the ABI, CLI, or Explorer.
+
+## What can an organism do?
+
+| Action | Plain-language meaning | On-chain result |
+| --- | --- | --- |
+| `birth` | Create a new organism | Creates and initializes a new 264-byte organism account |
+| `pulse` | Let time pass for one organism | Updates age, energy, vitality, memory, mutation, and life status |
+| `encounter` | Meet another organism | Measures genome compatibility and changes only the active organism |
+| `reproduce` | Combine two parents | Creates a child with crossover, mutation, and two-parent lineage |
+| `transfer_control` | Give the organism to someone else | Replaces the controller authorized to change it |
 
 ```text
-seed + proof
-    │
-    ▼
-  birth ──► organism account (genome · lineage · memory · energy · vitality)
-    │
-    ├── pulse ─────► age / metabolism / mutation / dormancy / death
-    ├── encounter ─► compatibility / learning / memory update
-    ├── reproduce ─► child account + two-parent lineage
-    └── transfer ─► new controller authorization
+seed + creation proof
+         |
+         v
+       birth
+         |
+         v
+  organism account
+  genome · energy · memory · lineage
+         |
+         +---- pulse ----------> age / metabolism / mutation
+         |
+         +---- encounter ------> compatibility / learning
+         |
+         +---- reproduce ------> child organism
+         |
+         +---- transfer -------> new controller
+                                  |
+                         alive / dormant / dead
 ```
 
-## Prerequisites
+## See it live on Betanet
 
-- Thru CLI 0.3.18 or compatible
-- Thru C SDK at `~/.thru/sdk/c/thru-sdk`
-- Thru RISC-V toolchain at `~/.thru/sdk/toolchain`
-- Node.js 24+ for the fixture generator
+| Item | Value |
+| --- | --- |
+| Network | Thru Betanet |
+| RPC | `https://rpc.betanet.thru.org` |
+| Program | [`taqUdv...ihXV3rw`](https://scan.thru.org/address/taqUdv93329-ZLvalbNYKhby6cDAa0v3dbT0IHbihXV3rw?rpc=https%3A%2F%2Frpc.betanet.thru.org) |
+| ABI | [`tafHBf...mH_C8W47`](https://scan.thru.org/address/tafHBf1TH_KYXKy4AsKa-FJVob07FTyOigKH__mH_C8W47?rpc=https%3A%2F%2Frpc.betanet.thru.org) |
+| Organism state | 264 bytes per account |
+| Program binary | 9,624 bytes |
+| Binary SHA-256 | `9B22018403F4CA745E22B5F13A71B63E7F01423FC75AF18423D3F89D5F3359AD` |
+| Frontend | None by design |
 
-The program targets Betanet (`https://rpc.betanet.thru.org`). A funded Betanet identity is required for live writes; the managed program and ABI have already been deployed there for this experimental phase.
+### Run the read-only demo
 
-## Build
+This is the fastest way to verify the project yourself. It reads existing Betanet data and does **not** submit transactions, spend testnet THRU, or require a private key.
 
-Run the build serially. The SDK archive and program link can race under `make -j` on this scaffold.
+You need:
+
+- Windows PowerShell;
+- Thru CLI 0.3.18 or a compatible version; and
+- internet access to the Betanet RPC.
+
+Clone the repository:
+
+```powershell
+git clone https://github.com/Alice699/Thru-betanet-program.git
+Set-Location .\Thru-betanet-program
+```
+
+Create the public Betanet network profile once:
+
+```powershell
+thru network add --url https://rpc.betanet.thru.org betanet
+```
+
+If a `betanet` profile already exists, keep it and skip that command. Then run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\demo-live.ps1
+```
+
+The script verifies:
+
+- the deployed program and ABI accounts;
+- three real organism accounts;
+- all five lifecycle event types;
+- ABI decoding of account state and transaction events; and
+- RPC-pinned Explorer links.
+
+A successful run returns a larger JSON report whose first fields include:
+
+```json
+{
+  "result": "Cambrian live demo verified",
+  "network": "betanet"
+}
+```
+
+## Why the architecture matters
+
+### Independent state
+
+Every organism has its own account. There is no global mutable registry that every transaction must lock, so unrelated organisms can evolve independently.
+
+### Read-only encounters
+
+During an encounter, the active organism is writable but the donor is read-only. The donor can be observed without allowing another controller to modify it.
+
+### An ABI as the public contract
+
+The ABI describes every instruction, account, event, and stable error code. Generated C and TypeScript bindings use the same layouts as the deployed program, making the binary interface inspectable instead of implicit.
+
+### Reproducible evolution
+
+Mutation, crossover, metabolism, and compatibility are deterministic. A developer can inspect the inputs and explain why a transition happened.
+
+## Verified status
+
+| Check | Result |
+| --- | --- |
+| ThruVM build | Passed without warnings |
+| ABI analysis | Passed: 15 types, no layout or validation errors |
+| ABI code generation | C and TypeScript bindings generated |
+| Fixture validation | 16 valid fixtures accepted; 3 malformed fixtures rejected |
+| Positive Betanet QA | All 5 lifecycle actions passed |
+| Negative Betanet QA | 8/8 expected reverts passed without state mutation |
+| Event readback | All 5 event variants reconstructed and ABI-decoded |
+| Parallel test | 2 independent pulses completed; both states persisted |
+
+<details>
+<summary><strong>Live transaction evidence</strong></summary>
+
+- [Birth](https://scan.thru.org/tx/tsWpbm4YEt4MUZeOV8kPqX5OWwS7cn_gqkZF8fLKf4797mOaCMaU-IHzevEpUgnQ4EJDToc0tcdqausm50l3bRByCI?rpc=https%3A%2F%2Frpc.betanet.thru.org) created the genesis organism.
+- [Pulse](https://scan.thru.org/tx/ts-ow3K02YNBs9gvJL8uMUzSnfQ0rcnva8Xh-HQUjg5c6fPwT3d_8WxxqXp1-MTibE4A8AwkYnBBjJtpFr5ZsqBx68?rpc=https%3A%2F%2Frpc.betanet.thru.org) advanced its metabolism and moved it to `DORMANT`.
+- [Encounter](https://scan.thru.org/tx/ts3DChUKvxWs67zaCWVT1S3EHN0YvOuk8FLUWx_j7fHL7dNnLNeKCwF3cIzJfTof9Bdl6Y8H6xu5fLAiVIg_OFBiJ8?rpc=https%3A%2F%2Frpc.betanet.thru.org) changed the actor while leaving the donor unchanged.
+- [Reproduce](https://scan.thru.org/tx/tsaTX8lypB6MxkKS854UD1YFRC12v2ouKNzDxc3XO0_Xjw0peHsajB31C5a7GmjAo-UL5cgTQWGnN8HjILXB0wAh8z?rpc=https%3A%2F%2Frpc.betanet.thru.org) created a generation-one child with both parents recorded.
+- [Transfer control](https://scan.thru.org/tx/tsY3ybuZjmGQMwq0YM3BzHyVK0SvOS9201-fSJStwtnyc9CBEMbwwvVSRWRNKT-FdAGrVFd30ihCQALMhGGJrIBRsd?rpc=https%3A%2F%2Frpc.betanet.thru.org) changed the child's controller; the former controller was then rejected with `UNAUTHORIZED`.
+
+Live organisms:
+
+- [Genesis organism](https://scan.thru.org/address/tagREJBIT3EjPhKEBTd2WUChA-Q_HaeVLRVX9Qs2o0yyvY?rpc=https%3A%2F%2Frpc.betanet.thru.org)
+- [Encounter actor](https://scan.thru.org/address/tarP_lYAaD0KWNG3cMEyMjYjxZFYuEQc4ZNUMUxIkjdoKp?rpc=https%3A%2F%2Frpc.betanet.thru.org)
+- [Generation-one child](https://scan.thru.org/address/ta6k1d-C7y2Vp9w1rp1E07EJ458wQI5QJRCap7vD3slja7?rpc=https%3A%2F%2Frpc.betanet.thru.org)
+
+</details>
+
+## Developer quickstart
+
+Run commands from the repository root unless a section says otherwise.
+
+### Requirements
+
+| Tool | Used for |
+| --- | --- |
+| Thru CLI 0.3.18+ | ABI tooling, RPC queries, and transactions |
+| Node.js 24+ | Fixture generation and model tests |
+| Thru C SDK | Program compilation |
+| Thru RISC-V toolchain | ThruVM target compilation |
+| GNU Make in Linux or WSL | Reproducible program build |
+
+The default SDK paths used by the makefile are:
+
+```text
+~/.thru/sdk/c/thru-sdk
+~/.thru/sdk/toolchain
+```
+
+### Validate the ABI and state model
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-local.ps1
+```
+
+This one command analyzes the ABI, regenerates both bindings, creates fixtures, runs model boundary tests, accepts the valid binary layouts, and confirms that malformed payloads are rejected.
+
+### Build the program
+
+From a Linux or WSL shell:
 
 ```bash
 make
 ```
 
-Output:
+Build serially. Do not use `make -j` with this scaffold because the SDK archive and final link can race.
+
+Outputs:
 
 ```text
 build/thruvm/bin/cambrian_c.bin
 build/thruvm/bin/cambrian_c.elf
 ```
 
-## ABI and generated bindings
+### Work with the ABI directly
 
-The source of truth is `cambrian.abi.yaml`. Analyze it before code generation:
+`cambrian.abi.yaml` is the binary-interface source of truth.
 
-```powershell
-thru abi analyze --files .\cambrian\cambrian.abi.yaml --print-footprint CambrianOrganism --print-validate CambrianInstruction
-thru abi codegen --files .\cambrian\cambrian.abi.yaml --language c --output .\cambrian\generated\c
-thru abi codegen --files .\cambrian\cambrian.abi.yaml --language typescript --output .\cambrian\generated\typescript
-```
-
-Generated TypeScript helpers are used to create deterministic binary fixtures:
+<details>
+<summary><strong>Show individual ABI commands</strong></summary>
 
 ```powershell
-node.exe --experimental-transform-types .\cambrian\tools\make-fixtures.mjs
-node.exe .\cambrian\tools\test-model.mjs
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\cambrian\tools\validate-local.ps1
+thru abi analyze --files .\cambrian.abi.yaml --print-footprint CambrianOrganism --print-validate CambrianInstruction
+thru abi codegen --files .\cambrian.abi.yaml --language c --output .\generated\c
+thru abi codegen --files .\cambrian.abi.yaml --language typescript --output .\generated\typescript
+thru abi reflect --abi-file .\cambrian.abi.yaml --type-name CambrianInstruction --data-file .\fixtures\instruction-birth.bin --validate-only
 ```
 
-The fixtures cover all five instructions, the 264-byte account, all five events, an error, four ABI-valid/runtime-invalid instructions, and three malformed inputs. The validation gate currently accepts 16 valid fixtures and rejects all three malformed fixtures. Their proof bytes are synthetic ABI-test data, not a live account-creation proof. Reflect/validate them with:
+The generated bindings are committed under `generated/` so reviewers can inspect the exact wire layout.
+
+</details>
+
+## Contract and safety model
+
+Every writable organism must:
+
+- be owned by the Cambrian program;
+- be exactly 264 bytes;
+- contain the expected magic value and version;
+- be explicitly marked writable by the transaction;
+- use valid account indices and relationships; and
+- be authorized by its stored controller.
+
+New organism accounts must match the address derived from their seed and must provide a bounded, exact-size creation proof. Arithmetic floors at zero or saturates at documented limits. Malformed tags, lengths, statuses, account layouts, and permissions revert with stable ABI error codes.
+
+<details>
+<summary><strong>Deterministic life rules</strong></summary>
+
+- **Pulse:** elapsed time is bounded to 1–4,096 slots. Energy cost is `elapsed * (3 + (digest[0] & 7))`. Low energy damages vitality; abundant energy permits bounded recovery.
+- **Life status:** zero vitality means `DEAD`; low energy or vitality means `DORMANT`; otherwise the organism remains `ALIVE`.
+- **Mutation:** a pulse may flip one bounded bit in the 256-bit genome when its deterministic digest crosses the mutation threshold.
+- **Encounter:** compatibility is `256 - HammingDistance(genome_a, genome_b)`. High compatibility grants symbiosis energy, medium compatibility grants adaptation energy, and low compatibility causes stress.
+- **Reproduction:** a digest-derived byte mask crosses two genomes, one bounded bit mutates, the controlled parent pays 512 energy, and the child records both parent addresses.
+- **Hashing:** domain-separated hashes include relevant block and transaction context. They make transitions deterministic and inspectable, but they are not secure economic randomness.
+
+</details>
+
+## Advanced live tools
+
+These tools are for developers who already understand the account ordering and signing model.
+
+| Tool | Purpose | Writes to Betanet? |
+| --- | --- | --- |
+| `demo-live.ps1` | Verify deployed accounts, state, and events | No |
+| `decode-live-event.ps1` | Decode one transaction event through the ABI | No |
+| `test-live-negative.ps1` | Submit and assert expected failures | Yes, with `-Execute` |
+| `stress-independent.ps1` | Plan or run parallel organism pulses | Only with `-Execute` |
+
+Decode one live event:
 
 ```powershell
-thru abi reflect --abi-file .\cambrian\cambrian.abi.yaml --type-name CambrianInstruction --data-file .\cambrian\fixtures\instruction-birth.bin --validate-only
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\decode-live-event.ps1 -Signature <transaction-signature>
 ```
 
-The generated TypeScript and C files are checked in under `generated/` so another developer can inspect the exact wire layout.
-
-The live instruction helpers use the generated TypeScript bindings and validate the final bytes before printing them. Node 24 needs the type-transform flag because the generated bindings contain TypeScript parameter properties:
-
-```powershell
-node.exe --experimental-transform-types .\tools\build-birth.mjs <proof-hex> cambrian-organism-3 160
-node.exe --experimental-transform-types .\tools\build-reproduce.mjs <proof-hex> cambrian-child-2 192
-node.exe --experimental-transform-types .\tools\build-transfer.mjs 2 3
-```
-
-The birth and reproduce helpers accept the current creation proof as hex and emit JSON containing the ABI-validated instruction hex. Keep the proof out of commits and transcripts. The reproduce helper encodes parent A at account index 2, the child at index 3, and parent B at read-only index 4; use repeated `--readwrite-accounts`/`--readonly-accounts` flags when submitting those transactions.
-
-## Reproduce the live evidence
-
-Run the complete read-only Betanet demonstration with one command:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\demo-live.ps1
-```
-
-It verifies the deployed program and ABI accounts, reflects the genesis organism, actor, and child, decodes all five successful lifecycle events, and prints RPC-pinned Explorer links. It does not submit transactions or spend fees.
-
-To decode one live event independently:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\decode-live-event.ps1 -Signature <ts-signature>
-```
-
-Thru receipts expose the first eight emitted bytes as little-endian `event_type`; `data.value` contains the remaining tail with terminal zero bytes omitted, while `events_size` preserves the original length. The decoder reconstructs `event_type + data + trailing zero padding` and reflects the result as `CambrianEvent`.
-
-The live negative suite intentionally submits reverting transactions and therefore requires explicit opt-in and network fees:
+Run the negative suite only when the fee payer is funded:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-live-negative.ps1 -Execute
 ```
 
-It asserts eight stable failures across all five instruction paths, including invalid seed/address, authorization, duplicate-organism relationships, bad account indices, read-only mutation, and invalid account layout.
-
-The independent-organism stress harness is plan-only by default:
+Preview a two-organism stress run:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\stress-independent.ps1 -Count 2 -RunId demo -FeePayers default,stress_key_2
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\stress-independent.ps1 -Count 2 -RunId demo -FeePayers key_1,key_2
 ```
 
-Add `-Execute` only after each listed key has a funded Betanet account. Concurrent organisms require distinct controller/fee-payer keys: a shared fee payer serializes otherwise-independent transactions through its nonce. The verified `qa0926b` run submitted two pulses in parallel, completed in 4,582 ms, consumed 237,780 compute units in total, decoded both events, and reflected `pulse_count=1` in both accounts.
+Add `-Execute` only after both keys have funded Betanet accounts. Concurrent submissions require a distinct controller and fee payer for each organism; reusing one fee payer introduces nonce contention even when the organism accounts are independent.
 
-## Deployment (after Betanet funding)
+## Deploy your own experimental copy
 
-Do not deploy until the program binary, ABI, and funded identity are confirmed. The usual flow is:
+Deployment writes to Betanet and consumes testnet THRU. Validate the binary and ABI first, confirm the active public identity, and never print or commit private keys.
 
 ```bash
-thru uploader upload <seed> build/thruvm/bin/cambrian_c.bin
-thru program create <seed> build/thruvm/bin/cambrian_c.bin
+thru --network betanet program create <seed> build/thruvm/bin/cambrian_c.bin
+thru --network betanet abi account create <seed> cambrian.abi.yaml
 ```
 
-Keep `<seed>` out of source control and terminal transcripts. After deployment, record the program address and transaction signature in the project notes, then exercise `birth` first before testing the remaining transitions.
+Use the same managed-program seed for the program and its ABI. The seed used by the existing deployment is intentionally not stored in this repository. Keep experimental deployments upgradeable until testing is complete.
 
-## Betanet validation evidence
-
-The current experimental deployment is intentionally upgradeable. The deployed [program account](https://scan.thru.org/address/taqUdv93329-ZLvalbNYKhby6cDAa0v3dbT0IHbihXV3rw?rpc=https%3A%2F%2Frpc.betanet.thru.org) is `taqUdv93329-ZLvalbNYKhby6cDAa0v3dbT0IHbihXV3rw`; its [open ABI account](https://scan.thru.org/address/tafHBf1TH_KYXKy4AsKa-FJVob07FTyOigKH__mH_C8W47?rpc=https%3A%2F%2Frpc.betanet.thru.org) is `tafHBf1TH_KYXKy4AsKa-FJVob07FTyOigKH__mH_C8W47`. The upgraded binary is 9,624 bytes with SHA-256 `9B22018403F4CA745E22B5F13A71B63E7F01423FC75AF18423D3F89D5F3359AD`.
-
-| Live path | Betanet evidence |
-| --- | --- |
-| `birth` | organism `tagREJBIT3EjPhKEBTd2WUChA-Q_HaeVLRVX9Qs2o0yyvY`; slot `546416`; [Explorer transaction](https://scan.thru.org/tx/tsWpbm4YEt4MUZeOV8kPqX5OWwS7cn_gqkZF8fLKf4797mOaCMaU-IHzevEpUgnQ4EJDToc0tcdqausm50l3bRByCI?rpc=https%3A%2F%2Frpc.betanet.thru.org) |
-| upgraded `pulse` | slot `547256`; [Explorer transaction](https://scan.thru.org/tx/ts-ow3K02YNBs9gvJL8uMUzSnfQ0rcnva8Xh-HQUjg5c6fPwT3d_8WxxqXp1-MTibE4A8AwkYnBBjJtpFr5ZsqBx68?rpc=https%3A%2F%2Frpc.betanet.thru.org); reflected status `DORMANT`, age `840`, vitality `65` |
-| second `birth` + `encounter` | actor `tarP_lYAaD0KWNG3cMEyMjYjxZFYuEQc4ZNUMUxIkjdoKp`; birth slot `547388`; encounter slot `547416`; [encounter transaction](https://scan.thru.org/tx/ts3DChUKvxWs67zaCWVT1S3EHN0YvOuk8FLUWx_j7fHL7dNnLNeKCwF3cIzJfTof9Bdl6Y8H6xu5fLAiVIg_OFBiJ8?rpc=https%3A%2F%2Frpc.betanet.thru.org); actor encounter count `1` |
-| `reproduce` | child `ta6k1d-C7y2Vp9w1rp1E07EJ458wQI5QJRCap7vD3slja7`; slot `547601`; [Explorer transaction](https://scan.thru.org/tx/tsaTX8lypB6MxkKS854UD1YFRC12v2ouKNzDxc3XO0_Xjw0peHsajB31C5a7GmjAo-UL5cgTQWGnN8HjILXB0wAh8z?rpc=https%3A%2F%2Frpc.betanet.thru.org); generation `1`; both parent addresses reflected |
-| `transfer_control` | slot `548639`; [Explorer transaction](https://scan.thru.org/tx/tsY3ybuZjmGQMwq0YM3BzHyVK0SvOS9201-fSJStwtnyc9CBEMbwwvVSRWRNKT-FdAGrVFd30ihCQALMhGGJrIBRsd?rpc=https%3A%2F%2Frpc.betanet.thru.org); child controller changed to `taVQ0UdXh8EhJBw2blXvgVOITohZrLiOc_QB0T_ct0kY7E`; former controller rejected with `0xCA01000C` |
-
-The account state was read back through Betanet RPC and reflected against the published ABI. All five successful transaction receipts now reconstruct and decode as their expected typed `CambrianEvent` variants.
-
-## Project map
+## Repository map
 
 ```text
-cambrian/
-|-- GNUmakefile
-|-- cambrian.abi.yaml
-|-- LAUNCH.md
+.
 |-- examples/
-|   |-- cambrian.c
-|   `-- cambrian.h
+|   |-- cambrian.c              # Program dispatcher and state transitions
+|   `-- cambrian.h              # Contract layouts, constants, and errors
 |-- generated/
-|-- fixtures/
-`-- tools/
-    |-- make-fixtures.mjs
-    |-- validate-local.ps1
-    |-- build-birth.mjs
-    |-- build-reproduce.mjs
-    |-- build-transfer.mjs
-    |-- decode-live-event.ps1
-    |-- test-live-negative.ps1
-    |-- demo-live.ps1
-    `-- stress-independent.ps1
+|   |-- c/                      # Generated C ABI bindings
+|   `-- typescript/             # Generated TypeScript ABI bindings
+|-- fixtures/                   # Valid and intentionally malformed binary cases
+|-- tools/
+|   |-- demo-live.ps1           # One-command, read-only Betanet proof
+|   |-- validate-local.ps1      # Full local ABI validation gate
+|   |-- decode-live-event.ps1   # Receipt reconstruction and ABI decoding
+|   |-- test-live-negative.ps1  # Live revert assertions
+|   `-- stress-independent.ps1  # Independent-account concurrency harness
+|-- cambrian.abi.yaml           # ABI source of truth
+|-- GNUmakefile                 # ThruVM build
+`-- LAUNCH.md                  # Copy-ready launch summary and evidence
 ```
+
+## Scope and limitations
+
+- Cambrian targets **Betanet**, not Mainnet.
+- The current program and ABI are intentionally upgradeable.
+- Block-derived entropy is suitable for this digital-life experiment, not for financial randomness.
+- A frontend is intentionally outside the project scope; the program, ABI, transactions, events, and Explorer are the interface.
+- Treat the code as experimental infrastructure, not production financial software.
+
+## Further reading
+
+- [Thru documentation](https://thru.org/docs/)
+- [Thru API reference](https://thru.org/docs/api-ref/overview/)
+- [Thru Explorer MCP](https://thru.org/docs/api-ref/explorer-mcp/overview/)
+- [Cambrian launch notes](./LAUNCH.md)
