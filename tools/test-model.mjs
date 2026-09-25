@@ -66,7 +66,7 @@ assert(floorSub(3, 10) === 0, 'floor subtraction underflow failed');
 assert(saturatingAdd(1000, 24, 1024) === 1024, 'saturating add cap failed');
 assert(saturatingAdd(1000, 2, 1024) === 1002, 'saturating add normal case failed');
 assert(pulseCost(1, 0) === 3, 'minimum pulse cost failed');
-assert(pulseCost(256, 0xff) === 2560, 'maximum bounded pulse cost failed');
+assert(pulseCost(4096, 0xff) === 40960, 'maximum bounded pulse cost failed');
 assert(pulseStatus(1, 300) === 'dormant', 'low-energy status failed');
 assert(pulseStatus(300, 255) === 'dormant', 'low-vitality status failed');
 assert(pulseStatus(300, 0) === 'dead', 'zero-vitality status failed');
