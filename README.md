@@ -84,7 +84,7 @@ node.exe .\cambrian\tools\test-model.mjs
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\cambrian\tools\validate-local.ps1
 ```
 
-The fixtures cover all five instructions, the 264-byte account, all five events, an error, and three malformed inputs. Their proof bytes are synthetic ABI-test data, not a live account-creation proof. Reflect/validate them with:
+The fixtures cover all five instructions, the 264-byte account, all five events, an error, four ABI-valid/runtime-invalid instructions, and three malformed inputs. The validation gate currently accepts 16 valid fixtures and rejects all three malformed fixtures. Their proof bytes are synthetic ABI-test data, not a live account-creation proof. Reflect/validate them with:
 
 ```powershell
 thru abi reflect --abi-file .\cambrian\cambrian.abi.yaml --type-name CambrianInstruction --data-file .\cambrian\fixtures\instruction-birth.bin --validate-only
@@ -102,6 +102,40 @@ node.exe --experimental-transform-types .\tools\build-transfer.mjs 2 3
 
 The birth and reproduce helpers accept the current creation proof as hex and emit JSON containing the ABI-validated instruction hex. Keep the proof out of commits and transcripts. The reproduce helper encodes parent A at account index 2, the child at index 3, and parent B at read-only index 4; use repeated `--readwrite-accounts`/`--readonly-accounts` flags when submitting those transactions.
 
+## Reproduce the live evidence
+
+Run the complete read-only Betanet demonstration with one command:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\demo-live.ps1
+```
+
+It verifies the deployed program and ABI accounts, reflects the genesis organism, actor, and child, decodes all five successful lifecycle events, and prints RPC-pinned Explorer links. It does not submit transactions or spend fees.
+
+To decode one live event independently:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\decode-live-event.ps1 -Signature <ts-signature>
+```
+
+Thru receipts expose the first eight emitted bytes as little-endian `event_type`; `data.value` contains the remaining tail with terminal zero bytes omitted, while `events_size` preserves the original length. The decoder reconstructs `event_type + data + trailing zero padding` and reflects the result as `CambrianEvent`.
+
+The live negative suite intentionally submits reverting transactions and therefore requires explicit opt-in and network fees:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-live-negative.ps1 -Execute
+```
+
+It asserts eight stable failures across all five instruction paths, including invalid seed/address, authorization, duplicate-organism relationships, bad account indices, read-only mutation, and invalid account layout.
+
+The independent-organism stress harness is plan-only by default:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\stress-independent.ps1 -Count 2 -RunId demo -FeePayers default,stress_key_2
+```
+
+Add `-Execute` only after each listed key has a funded Betanet account. Concurrent organisms require distinct controller/fee-payer keys: a shared fee payer serializes otherwise-independent transactions through its nonce. The verified `qa0926b` run submitted two pulses in parallel, completed in 4,582 ms, consumed 237,780 compute units in total, decoded both events, and reflected `pulse_count=1` in both accounts.
+
 ## Deployment (after Betanet funding)
 
 Do not deploy until the program binary, ABI, and funded identity are confirmed. The usual flow is:
@@ -115,29 +149,38 @@ Keep `<seed>` out of source control and terminal transcripts. After deployment, 
 
 ## Betanet validation evidence
 
-The current experimental deployment is intentionally upgradeable. The deployed program is `taqUdv93329-ZLvalbNYKhby6cDAa0v3dbT0IHbihXV3rw`; its open ABI is `tafHBf1TH_KYXKy4AsKa-FJVob07FTyOigKH__mH_C8W47`. The upgraded binary is 9,624 bytes with SHA-256 `9B22018403F4CA745E22B5F13A71B63E7F01423FC75AF18423D3F89D5F3359AD`.
+The current experimental deployment is intentionally upgradeable. The deployed [program account](https://scan.thru.org/address/taqUdv93329-ZLvalbNYKhby6cDAa0v3dbT0IHbihXV3rw?rpc=https%3A%2F%2Frpc.betanet.thru.org) is `taqUdv93329-ZLvalbNYKhby6cDAa0v3dbT0IHbihXV3rw`; its [open ABI account](https://scan.thru.org/address/tafHBf1TH_KYXKy4AsKa-FJVob07FTyOigKH__mH_C8W47?rpc=https%3A%2F%2Frpc.betanet.thru.org) is `tafHBf1TH_KYXKy4AsKa-FJVob07FTyOigKH__mH_C8W47`. The upgraded binary is 9,624 bytes with SHA-256 `9B22018403F4CA745E22B5F13A71B63E7F01423FC75AF18423D3F89D5F3359AD`.
 
 | Live path | Betanet evidence |
 | --- | --- |
-| `birth` | organism `tagREJBIT3EjPhKEBTd2WUChA-Q_HaeVLRVX9Qs2o0yyvY`; slot `546416`; signature `tsWpbm4YEt4MUZeOV8kPqX5OWwS7cn_gqkZF8fLKf4797mOaCMaU-IHzevEpUgnQ4EJDToc0tcdqausm50l3bRByCI` |
-| upgraded `pulse` | slot `547256`; signature `ts-ow3K02YNBs9gvJL8uMUzSnfQ0rcnva8Xh-HQUjg5c6fPwT3d_8WxxqXp1-MTibE4A8AwkYnBBjJtpFr5ZsqBx68`; reflected status `DORMANT`, age `840`, vitality `65` |
-| second `birth` + `encounter` | actor `tarP_lYAaD0KWNG3cMEyMjYjxZFYuEQc4ZNUMUxIkjdoKp`; birth slot `547388`; encounter slot `547416`; actor encounter count `1` |
-| `reproduce` | child `ta6k1d-C7y2Vp9w1rp1E07EJ458wQI5QJRCap7vD3slja7`; slot `547601`; generation `1`; both parent addresses reflected |
-| `transfer_control` | slot `548639`; child controller changed to `taVQ0UdXh8EhJBw2blXvgVOITohZrLiOc_QB0T_ct0kY7E`; former controller rejected with `0xCA01000C` |
+| `birth` | organism `tagREJBIT3EjPhKEBTd2WUChA-Q_HaeVLRVX9Qs2o0yyvY`; slot `546416`; [Explorer transaction](https://scan.thru.org/tx/tsWpbm4YEt4MUZeOV8kPqX5OWwS7cn_gqkZF8fLKf4797mOaCMaU-IHzevEpUgnQ4EJDToc0tcdqausm50l3bRByCI?rpc=https%3A%2F%2Frpc.betanet.thru.org) |
+| upgraded `pulse` | slot `547256`; [Explorer transaction](https://scan.thru.org/tx/ts-ow3K02YNBs9gvJL8uMUzSnfQ0rcnva8Xh-HQUjg5c6fPwT3d_8WxxqXp1-MTibE4A8AwkYnBBjJtpFr5ZsqBx68?rpc=https%3A%2F%2Frpc.betanet.thru.org); reflected status `DORMANT`, age `840`, vitality `65` |
+| second `birth` + `encounter` | actor `tarP_lYAaD0KWNG3cMEyMjYjxZFYuEQc4ZNUMUxIkjdoKp`; birth slot `547388`; encounter slot `547416`; [encounter transaction](https://scan.thru.org/tx/ts3DChUKvxWs67zaCWVT1S3EHN0YvOuk8FLUWx_j7fHL7dNnLNeKCwF3cIzJfTof9Bdl6Y8H6xu5fLAiVIg_OFBiJ8?rpc=https%3A%2F%2Frpc.betanet.thru.org); actor encounter count `1` |
+| `reproduce` | child `ta6k1d-C7y2Vp9w1rp1E07EJ458wQI5QJRCap7vD3slja7`; slot `547601`; [Explorer transaction](https://scan.thru.org/tx/tsaTX8lypB6MxkKS854UD1YFRC12v2ouKNzDxc3XO0_Xjw0peHsajB31C5a7GmjAo-UL5cgTQWGnN8HjILXB0wAh8z?rpc=https%3A%2F%2Frpc.betanet.thru.org); generation `1`; both parent addresses reflected |
+| `transfer_control` | slot `548639`; [Explorer transaction](https://scan.thru.org/tx/tsY3ybuZjmGQMwq0YM3BzHyVK0SvOS9201-fSJStwtnyc9CBEMbwwvVSRWRNKT-FdAGrVFd30ihCQALMhGGJrIBRsd?rpc=https%3A%2F%2Frpc.betanet.thru.org); child controller changed to `taVQ0UdXh8EhJBw2blXvgVOITohZrLiOc_QB0T_ct0kY7E`; former controller rejected with `0xCA01000C` |
 
-The account state was read back through Betanet RPC and reflected against the published ABI. Transaction receipts report one typed event for each successful path; the Explorer/CLI event payload representation still needs a separate clean decode capture.
+The account state was read back through Betanet RPC and reflected against the published ABI. All five successful transaction receipts now reconstruct and decode as their expected typed `CambrianEvent` variants.
 
 ## Project map
 
 ```text
 cambrian/
-├── GNUmakefile
-├── cambrian.abi.yaml
-├── examples/
-│   ├── cambrian.c
-│   └── cambrian.h
-├── generated/
-├── fixtures/
-└── tools/
-    └── make-fixtures.mjs
+|-- GNUmakefile
+|-- cambrian.abi.yaml
+|-- LAUNCH.md
+|-- examples/
+|   |-- cambrian.c
+|   `-- cambrian.h
+|-- generated/
+|-- fixtures/
+`-- tools/
+    |-- make-fixtures.mjs
+    |-- validate-local.ps1
+    |-- build-birth.mjs
+    |-- build-reproduce.mjs
+    |-- build-transfer.mjs
+    |-- decode-live-event.ps1
+    |-- test-live-negative.ps1
+    |-- demo-live.ps1
+    `-- stress-independent.ps1
 ```
